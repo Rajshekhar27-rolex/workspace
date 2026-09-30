@@ -43,22 +43,28 @@ CREATE TABLE "WorkItem" (
 );
 
 -- CreateTable
-CREATE TABLE "ActivityLog" (
+CREATE TABLE "Activity" (
     "id" TEXT NOT NULL PRIMARY KEY,
     "requestId" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
     "action" TEXT NOT NULL,
     "details" TEXT,
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT "ActivityLog_requestId_fkey" FOREIGN KEY ("requestId") REFERENCES "CustomerRequest" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
-    CONSTRAINT "ActivityLog_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User" ("id") ON DELETE CASCADE ON UPDATE CASCADE
+    CONSTRAINT "Activity_requestId_fkey" FOREIGN KEY ("requestId") REFERENCES "CustomerRequest" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
+    CONSTRAINT "Activity_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User" ("id") ON DELETE CASCADE ON UPDATE CASCADE
 );
 
 -- CreateIndex
 CREATE UNIQUE INDEX "User_email_key" ON "User"("email");
 
 -- CreateIndex
+CREATE INDEX "User_workspaceId_idx" ON "User"("workspaceId");
+
+-- CreateIndex
 CREATE INDEX "CustomerRequest_workspaceId_status_idx" ON "CustomerRequest"("workspaceId", "status");
+
+-- CreateIndex
+CREATE INDEX "CustomerRequest_workspaceId_createdAt_idx" ON "CustomerRequest"("workspaceId", "createdAt");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "WorkItem_requestId_key" ON "WorkItem"("requestId");
@@ -67,4 +73,7 @@ CREATE UNIQUE INDEX "WorkItem_requestId_key" ON "WorkItem"("requestId");
 CREATE INDEX "WorkItem_workspaceId_idx" ON "WorkItem"("workspaceId");
 
 -- CreateIndex
-CREATE INDEX "ActivityLog_requestId_idx" ON "ActivityLog"("requestId");
+CREATE INDEX "Activity_requestId_idx" ON "Activity"("requestId");
+
+-- CreateIndex
+CREATE INDEX "Activity_userId_idx" ON "Activity"("userId");

@@ -2,48 +2,49 @@ import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
-async function main() {
+export async function seed() {
   console.log('Clearing existing database records...');
-  await prisma.activityLog.deleteMany();
+  await prisma.activity.deleteMany();
   await prisma.workItem.deleteMany();
   await prisma.customerRequest.deleteMany();
   await prisma.user.deleteMany();
   await prisma.workspace.deleteMany();
 
-  console.log('Seeding workspaces...');
-  const apexWorkspace = await prisma.workspace.create({
+  console.log('Seeding Workspace A and User A...');
+  const workspaceA = await prisma.workspace.create({
     data: {
       name: 'Apex Auto Repair',
     },
   });
 
-  const brightWorkspace = await prisma.workspace.create({
+  const userA = await prisma.user.create({
+    data: {
+      name: 'Alice Apex',
+      email: 'alice@apexauto.com',
+      workspaceId: workspaceA.id,
+    },
+  });
+
+  console.log('Seeding Workspace B and User B...');
+  const workspaceB = await prisma.workspace.create({
     data: {
       name: 'Bright Horizon Cleaning',
     },
   });
 
-  console.log('Seeding users...');
-  const alice = await prisma.user.create({
-    data: {
-      name: 'Alice Apex',
-      email: 'alice@apexauto.com',
-      workspaceId: apexWorkspace.id,
-    },
-  });
-
-  const bob = await prisma.user.create({
+  const userB = await prisma.user.create({
     data: {
       name: 'Bob Bright',
       email: 'bob@brighthorizon.com',
-      workspaceId: brightWorkspace.id,
+      workspaceId: workspaceB.id,
     },
   });
 
-  console.log('Seeding requests for Apex Auto Repair...');
-  const apexReq1 = await prisma.customerRequest.create({
+  console.log('Seeding customer requests for Workspace A (Apex Auto Repair)...');
+  // Request 1: NEW
+  await prisma.customerRequest.create({
     data: {
-      workspaceId: apexWorkspace.id,
+      workspaceId: workspaceA.id,
       customerName: 'Marcus Vance',
       customerEmail: 'marcus.v@example.com',
       customerPhone: '555-0192',
@@ -53,18 +54,19 @@ async function main() {
       activities: {
         create: [
           {
-            userId: alice.id,
+            userId: userA.id,
             action: 'CREATED',
-            details: 'Request submitted via online web form.',
+            details: 'Request submitted via online web portal.',
           },
         ],
       },
     },
   });
 
-  const apexReq2 = await prisma.customerRequest.create({
+  // Request 2: QUALIFIED (Ready for conversion)
+  await prisma.customerRequest.create({
     data: {
-      workspaceId: apexWorkspace.id,
+      workspaceId: workspaceA.id,
       customerName: 'Elena Rostova',
       customerEmail: 'elena.r@example.com',
       customerPhone: '555-0144',
@@ -74,12 +76,12 @@ async function main() {
       activities: {
         create: [
           {
-            userId: alice.id,
+            userId: userA.id,
             action: 'CREATED',
             details: 'Customer called front desk.',
           },
           {
-            userId: alice.id,
+            userId: userA.id,
             action: 'STATUS_CHANGED',
             details: 'Reviewed vehicle requirements and marked request as QUALIFIED.',
           },
@@ -88,35 +90,49 @@ async function main() {
     },
   });
 
+  // Request 3: QUALIFIED with existing WorkItem (demonstrates completed conversion)
   const apexReq3 = await prisma.customerRequest.create({
     data: {
-      workspaceId: apexWorkspace.id,
+      workspaceId: workspaceA.id,
       customerName: 'David Kim',
       customerEmail: 'dkim@example.com',
       customerPhone: '555-0188',
       requestedService: 'Transmission Fluid Flush',
       details: 'Vehicle hesitation between 2nd and 3rd gear.',
       status: 'QUALIFIED',
+      workItem: {
+        create: {
+          workspaceId: workspaceA.id,
+          scheduledDate: new Date('2026-10-15T09:00:00.000Z'),
+          notes: 'Bay 2 reserved with lead mechanic John.',
+        },
+      },
       activities: {
         create: [
           {
-            userId: alice.id,
+            userId: userA.id,
             action: 'CREATED',
             details: 'Inquiry received via email.',
           },
           {
-            userId: alice.id,
+            userId: userA.id,
             action: 'STATUS_CHANGED',
             details: 'Diagnostics verified; marked as QUALIFIED.',
+          },
+          {
+            userId: userA.id,
+            action: 'CONVERTED_TO_WORK_ITEM',
+            details: 'Work item scheduled for 2026-10-15 09:00 UTC (Bay 2 reserved with lead mechanic John).',
           },
         ],
       },
     },
   });
 
-  const apexReq4 = await prisma.customerRequest.create({
+  // Request 4: CLOSED
+  await prisma.customerRequest.create({
     data: {
-      workspaceId: apexWorkspace.id,
+      workspaceId: workspaceA.id,
       customerName: 'Samantha Green',
       customerEmail: 'sgreen@example.com',
       customerPhone: '555-0163',
@@ -126,12 +142,12 @@ async function main() {
       activities: {
         create: [
           {
-            userId: alice.id,
+            userId: userA.id,
             action: 'CREATED',
             details: 'Customer inquiry received.',
           },
           {
-            userId: alice.id,
+            userId: userA.id,
             action: 'STATUS_CHANGED',
             details: 'Customer decided to postpone service. Marked CLOSED.',
           },
@@ -140,10 +156,11 @@ async function main() {
     },
   });
 
-  console.log('Seeding requests for Bright Horizon Cleaning...');
-  const brightReq1 = await prisma.customerRequest.create({
+  console.log('Seeding customer requests for Workspace B (Bright Horizon Cleaning)...');
+  // Request 1: NEW
+  await prisma.customerRequest.create({
     data: {
-      workspaceId: brightWorkspace.id,
+      workspaceId: workspaceB.id,
       customerName: 'Acme Logistics HQ',
       customerEmail: 'facilities@acmelogistics.com',
       customerPhone: '555-0210',
@@ -153,7 +170,7 @@ async function main() {
       activities: {
         create: [
           {
-            userId: bob.id,
+            userId: userB.id,
             action: 'CREATED',
             details: 'Quote request submitted through corporate contact portal.',
           },
@@ -162,9 +179,10 @@ async function main() {
     },
   });
 
-  const brightReq2 = await prisma.customerRequest.create({
+  // Request 2: QUALIFIED (Ready for conversion)
+  await prisma.customerRequest.create({
     data: {
-      workspaceId: brightWorkspace.id,
+      workspaceId: workspaceB.id,
       customerName: 'Dr. Gregory House',
       customerEmail: 'ghouse@cliniccare.org',
       customerPhone: '555-0244',
@@ -174,12 +192,12 @@ async function main() {
       activities: {
         create: [
           {
-            userId: bob.id,
+            userId: userB.id,
             action: 'CREATED',
             details: 'Clinic coordinator reached out for urgent sanitation.',
           },
           {
-            userId: bob.id,
+            userId: userB.id,
             action: 'STATUS_CHANGED',
             details: 'Verified clinic compliance checklist. Status changed to QUALIFIED.',
           },
@@ -188,9 +206,10 @@ async function main() {
     },
   });
 
-  const brightReq3 = await prisma.customerRequest.create({
+  // Request 3: QUALIFIED
+  await prisma.customerRequest.create({
     data: {
-      workspaceId: brightWorkspace.id,
+      workspaceId: workspaceB.id,
       customerName: 'Metro High School',
       customerEmail: 'admin@metrohs.edu',
       customerPhone: '555-0277',
@@ -200,12 +219,12 @@ async function main() {
       activities: {
         create: [
           {
-            userId: bob.id,
+            userId: userB.id,
             action: 'CREATED',
             details: 'Contract proposal received from school board.',
           },
           {
-            userId: bob.id,
+            userId: userB.id,
             action: 'STATUS_CHANGED',
             details: 'Supplies and crew schedule confirmed. Marked as QUALIFIED.',
           },
@@ -214,9 +233,10 @@ async function main() {
     },
   });
 
-  const brightReq4 = await prisma.customerRequest.create({
+  // Request 4: CLOSED
+  await prisma.customerRequest.create({
     data: {
-      workspaceId: brightWorkspace.id,
+      workspaceId: workspaceB.id,
       customerName: 'Downtown Yoga Studio',
       customerEmail: 'peace@downtownyoga.com',
       customerPhone: '555-0299',
@@ -226,12 +246,12 @@ async function main() {
       activities: {
         create: [
           {
-            userId: bob.id,
+            userId: userB.id,
             action: 'CREATED',
             details: 'Direct message inquiry.',
           },
           {
-            userId: bob.id,
+            userId: userB.id,
             action: 'STATUS_CHANGED',
             details: 'Studio completed cleanup independently. Request CLOSED.',
           },
@@ -241,15 +261,26 @@ async function main() {
   });
 
   console.log('Seeding completed successfully!');
-  console.log(`Apex Auto Repair (ID: ${apexWorkspace.id}) - User: ${alice.name} (${alice.email}, ID: ${alice.id})`);
-  console.log(`Bright Horizon Cleaning (ID: ${brightWorkspace.id}) - User: ${bob.name} (${bob.email}, ID: ${bob.id})`);
+  console.log(`Workspace A: "${workspaceA.name}" (ID: ${workspaceA.id}) - User: ${userA.name} (${userA.email}, ID: ${userA.id})`);
+  console.log(`Workspace B: "${workspaceB.name}" (ID: ${workspaceB.id}) - User: ${userB.name} (${userB.email}, ID: ${userB.id})`);
+  console.log(`Seeded converted request in Workspace A: ${apexReq3.id}`);
+
+  return {
+    workspaceA,
+    userA,
+    workspaceB,
+    userB,
+  };
 }
 
-main()
-  .catch((e) => {
-    console.error('Error seeding database:', e);
-    process.exit(1);
-  })
-  .finally(async () => {
-    await prisma.$disconnect();
-  });
+// When executed directly via tsx
+if (process.argv[1]?.includes('seed')) {
+  seed()
+    .catch((e) => {
+      console.error('Error seeding database:', e);
+      process.exit(1);
+    })
+    .finally(async () => {
+      await prisma.$disconnect();
+    });
+}

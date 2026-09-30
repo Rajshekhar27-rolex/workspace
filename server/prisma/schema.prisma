@@ -22,8 +22,10 @@ model User {
   name        String
   workspaceId String
   workspace   Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  activities  ActivityLog[]
+  activities  Activity[]
   createdAt   DateTime          @default(now())
+
+  @@index([workspaceId])
 }
 
 model CustomerRequest {
@@ -40,9 +42,10 @@ model CustomerRequest {
   updatedAt        DateTime      @updatedAt
 
   workItem         WorkItem?
-  activities       ActivityLog[]
+  activities       Activity[]
 
   @@index([workspaceId, status])
+  @@index([workspaceId, createdAt])
 }
 
 model WorkItem {
@@ -58,7 +61,7 @@ model WorkItem {
   @@index([workspaceId])
 }
 
-model ActivityLog {
+model Activity {
   id        String          @id @default(uuid())
   requestId String
   request   CustomerRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
@@ -69,4 +72,5 @@ model ActivityLog {
   createdAt DateTime        @default(now())
 
   @@index([requestId])
+  @@index([userId])
 }
