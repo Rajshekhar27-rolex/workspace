@@ -2,6 +2,7 @@ import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import { authRouter } from './routes/auth';
+import { requestsRouter } from './routes/requests';
 
 dotenv.config();
 
@@ -21,6 +22,9 @@ app.get('/api/health', (_req: Request, res: Response) => {
 
 // Authentication routes
 app.use('/api/auth', authRouter);
+
+// Customer Requests routes
+app.use('/api/requests', requestsRouter);
 
 // Centralized error handling middleware
 app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
