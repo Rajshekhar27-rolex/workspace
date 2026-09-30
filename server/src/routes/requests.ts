@@ -5,6 +5,7 @@ import {
   CreateRequestSchema,
   UpdateRequestSchema,
   ListRequestsQuerySchema,
+  ConvertRequestSchema,
   RequestStatus,
 } from '../schemas/requestSchemas';
 import { requestService } from '../services/requestService';
@@ -116,3 +117,63 @@ requestsRouter.patch(
     }
   }
 );
+
+/**
+ * POST /api/requests/:id/work-item (and alias POST /api/requests/:id/convert)
+ * Convert a QUALIFIED customer request into a scheduled WorkItem.
+ * Requirements:
+ * - Scoped to user's workspace (cross-workspace returns 404)
+ * - Must have status QUALIFIED (NEW, CLOSED return 400)
+ * - Prevents duplicates gracefully (returns 409)
+ * - Atomic WorkItem + Activity creation
+ */
+const handleWorkItemConversion = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { id } = req.params;
+    const result = await requestService.convertToWorkItem(
+      id,
+      req.user!.workspaceId,
+      req.user!.id,
+      req.body
+    );
+
+    if (!result.success) {
+      switch (result.error) {
+        case 'NOT_FOUND':
+          res.status(404).json({
+            error: {
+              code: 'NOT_FOUND',
+              message: 'Customer request not found.',
+            },
+          });
+          return;
+        case 'NOT_QUALIFIED':
+          res.status(400).json({
+            error: {
+              code: 'REQUEST_NOT_QUALIFIED',
+              message: `Only requests with status 'QUALIFIED' can be converted to a work item. Current status is '${result.currentStatus}'.`,
+            },
+          });
+          return;
+        case 'ALREADY_CONVERTED':
+          res.status(409).json({
+            error: {
+              code: 'ALREADY_CONVERTED',
+              message: 'A work item has already been created for this customer request.',
+            },
+          });
+          return;
+      }
+    }
+
+    res.status(201).json({
+      workItem: result.workItem,
+      request: result.request,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+requestsRouter.post('/:id/work-item', validateBody(ConvertRequestSchema), handleWorkItemConversion);
+requestsRouter.post('/:id/convert', validateBody(ConvertRequestSchema), handleWorkItemConversion);

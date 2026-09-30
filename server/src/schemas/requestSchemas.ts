@@ -75,3 +75,20 @@ export const ListRequestsQuerySchema = z.object({
 });
 
 export type ListRequestsQuery = z.infer<typeof ListRequestsQuerySchema>;
+
+export const ConvertRequestSchema = z.object({
+  scheduledDate: z
+    .string({ required_error: 'scheduledDate is required.' })
+    .trim()
+    .refine((val) => !isNaN(Date.parse(val)), {
+      message: 'scheduledDate must be a valid date string (e.g. ISO-8601).',
+    }),
+  notes: z
+    .string()
+    .trim()
+    .max(500, 'Notes must not exceed 500 characters.')
+    .optional()
+    .nullable(),
+});
+
+export type ConvertRequestInput = z.infer<typeof ConvertRequestSchema>;

@@ -1,5 +1,10 @@
 import { prisma } from '../db';
-import { CreateRequestInput, UpdateRequestInput, RequestStatus } from '../schemas/requestSchemas';
+import {
+  CreateRequestInput,
+  UpdateRequestInput,
+  ConvertRequestInput,
+  RequestStatus,
+} from '../schemas/requestSchemas';
 
 export class RequestService {
   /**
@@ -172,6 +177,111 @@ export class RequestService {
 
       return updated;
     });
+  }
+
+  /**
+   * Convert a QUALIFIED request into a scheduled WorkItem.
+   * Enforces:
+   * - Scoping to user's workspace
+   * - Request must be QUALIFIED (rejects NEW, CLOSED)
+   * - Atomic creation of WorkItem + Activity entry
+   * - Concurrency deduplication at DB level (returns ALREADY_CONVERTED on P2002)
+   */
+  async convertToWorkItem(
+    requestId: string,
+    workspaceId: string,
+    userId: string,
+    data: ConvertRequestInput
+  ) {
+    try {
+      return await prisma.$transaction(async (tx) => {
+        // 1. Scoped request lookup
+        const request = await tx.customerRequest.findFirst({
+          where: {
+            id: requestId,
+            workspaceId,
+          },
+          include: {
+            workItem: true,
+          },
+        });
+
+        if (!request) {
+          return { success: false as const, error: 'NOT_FOUND' as const };
+        }
+
+        // 2. Reject requests that are not QUALIFIED (e.g. NEW, CLOSED)
+        if (request.status !== 'QUALIFIED') {
+          return {
+            success: false as const,
+            error: 'NOT_QUALIFIED' as const,
+            currentStatus: request.status,
+          };
+        }
+
+        // 3. Application-level deduplication check
+        if (request.workItem) {
+          return { success: false as const, error: 'ALREADY_CONVERTED' as const };
+        }
+
+        const scheduledDateObj = new Date(data.scheduledDate);
+
+        // 4. Create WorkItem (enforces @unique([requestId]) at database level)
+        const workItem = await tx.workItem.create({
+          data: {
+            workspaceId,
+            requestId,
+            scheduledDate: scheduledDateObj,
+            notes: data.notes || null,
+          },
+        });
+
+        // 5. Create Activity record
+        await tx.activity.create({
+          data: {
+            requestId,
+            userId,
+            action: 'CONVERTED_TO_WORK_ITEM',
+            details: `Converted to work item scheduled for ${scheduledDateObj.toISOString()}.${
+              data.notes ? ` Notes: ${data.notes}` : ''
+            }`,
+          },
+        });
+
+        const updatedRequest = await tx.customerRequest.findUnique({
+          where: { id: requestId },
+          include: {
+            workItem: true,
+            activities: {
+              include: {
+                user: {
+                  select: {
+                    id: true,
+                    name: true,
+                    email: true,
+                  },
+                },
+              },
+              orderBy: {
+                createdAt: 'asc',
+              },
+            },
+          },
+        });
+
+        return {
+          success: true as const,
+          workItem,
+          request: updatedRequest,
+        };
+      });
+    } catch (err: any) {
+      // Prisma P2002 represents Unique constraint violation on requestId
+      if (err.code === 'P2002') {
+        return { success: false as const, error: 'ALREADY_CONVERTED' as const };
+      }
+      throw err;
+    }
   }
 }
 
