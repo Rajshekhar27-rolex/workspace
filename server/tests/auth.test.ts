@@ -36,6 +36,20 @@ describe('Authentication & Identity Verification API', () => {
       expect(foundBob).toBeDefined();
       expect(foundBob.workspaceName).toBe('Bright Horizon Cleaning');
     });
+
+    it('REGRESSION: should only expose safe public fields and never leak internal secrets or tokens', async () => {
+      const res = await request(app).get('/api/auth/users');
+
+      expect(res.status).toBe(200);
+      for (const u of res.body.users) {
+        // Must contain only expected keys
+        const keys = Object.keys(u);
+        expect(keys.sort()).toEqual(['email', 'id', 'name', 'workspaceId', 'workspaceName'].sort());
+        expect(u.password).toBeUndefined();
+        expect(u.token).toBeUndefined();
+        expect(u.hash).toBeUndefined();
+      }
+    });
   });
 
   describe('POST /api/auth/login', () => {

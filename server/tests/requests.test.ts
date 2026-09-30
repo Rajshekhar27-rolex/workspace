@@ -112,6 +112,21 @@ describe('Customer Requests API (CRUD & Multi-Tenant Isolation)', () => {
       expect(res.status).toBe(400);
       expect(res.body.error.code).toBe('VALIDATION_ERROR');
     });
+
+    it('REGRESSION: should ignore client-supplied workspaceId query param and enforce authenticated workspace', async () => {
+      // User A attempts to filter or read Workspace B's requests by passing ?workspaceId=workspaceBId
+      const res = await request(app)
+        .get(`/api/requests?workspaceId=${workspaceBId}`)
+        .set('x-user-id', userA.id);
+
+      expect(res.status).toBe(200);
+      expect(res.body.requests.length).toBeGreaterThan(0);
+      // Every returned request MUST strictly belong to Workspace A
+      for (const reqItem of res.body.requests) {
+        expect(reqItem.workspaceId).toBe(workspaceAId);
+        expect(reqItem.workspaceId).not.toBe(workspaceBId);
+      }
+    });
   });
 
   describe('POST /api/requests (Creation & Validation)', () => {
@@ -321,6 +336,30 @@ describe('Customer Requests API (CRUD & Multi-Tenant Isolation)', () => {
 
       expect(res.status).toBe(400);
       expect(res.body.error.code).toBe('VALIDATION_ERROR');
+    });
+
+    it('REGRESSION: should ignore any workspaceId provided in PATCH body to prevent tenant reassignment', async () => {
+      const reqA = await prisma.customerRequest.findFirst({
+        where: { workspaceId: workspaceAId },
+      });
+
+      const res = await request(app)
+        .patch(`/api/requests/${reqA!.id}`)
+        .set('x-user-id', userA.id)
+        .send({
+          workspaceId: workspaceBId, // Attempt to reassign record to Workspace B
+          details: 'Updated details without reassigning workspace',
+        });
+
+      expect(res.status).toBe(200);
+      expect(res.body.request.workspaceId).toBe(workspaceAId);
+      expect(res.body.request.workspaceId).not.toBe(workspaceBId);
+
+      // Verify directly in DB
+      const refreshed = await prisma.customerRequest.findUnique({
+        where: { id: reqA!.id },
+      });
+      expect(refreshed?.workspaceId).toBe(workspaceAId);
     });
   });
 });

@@ -106,19 +106,19 @@ export class RequestService {
    * Generates appropriate audit activity logs atomically.
    */
   async updateRequest(id: string, workspaceId: string, userId: string, data: UpdateRequestInput) {
-    // 1. Verify existence strictly within this workspace
-    const existing = await prisma.customerRequest.findFirst({
-      where: {
-        id,
-        workspaceId,
-      },
-    });
-
-    if (!existing) {
-      return null;
-    }
-
     return prisma.$transaction(async (tx) => {
+      // 1. Verify existence strictly within this workspace inside the transaction
+      const existing = await tx.customerRequest.findFirst({
+        where: {
+          id,
+          workspaceId,
+        },
+      });
+
+      if (!existing) {
+        return null;
+      }
+
       // Check if status changed
       if (data.status && data.status !== existing.status) {
         await tx.activity.create({
