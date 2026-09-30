@@ -1,0 +1,72 @@
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Workspace {
+  id        String            @id @default(uuid())
+  name      String
+  createdAt DateTime          @default(now())
+  users     User[]
+  requests  CustomerRequest[]
+  workItems WorkItem[]
+}
+
+model User {
+  id          String            @id @default(uuid())
+  email       String            @unique
+  name        String
+  workspaceId String
+  workspace   Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  activities  ActivityLog[]
+  createdAt   DateTime          @default(now())
+}
+
+model CustomerRequest {
+  id               String        @id @default(uuid())
+  workspaceId      String
+  workspace        Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  customerName     String
+  customerEmail    String
+  customerPhone    String?
+  requestedService String
+  details          String?
+  status           String        @default("NEW") // "NEW" | "QUALIFIED" | "CLOSED"
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  workItem         WorkItem?
+  activities       ActivityLog[]
+
+  @@index([workspaceId, status])
+}
+
+model WorkItem {
+  id            String          @id @default(uuid())
+  workspaceId   String
+  workspace     Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  requestId     String          @unique // DB-level guarantee: exactly 1 WorkItem per CustomerRequest
+  request       CustomerRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  scheduledDate DateTime
+  notes         String?
+  createdAt     DateTime        @default(now())
+
+  @@index([workspaceId])
+}
+
+model ActivityLog {
+  id        String          @id @default(uuid())
+  requestId String
+  request   CustomerRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  action    String          // "CREATED" | "STATUS_CHANGED" | "CONVERTED_TO_WORK_ITEM"
+  details   String?
+  createdAt DateTime        @default(now())
+
+  @@index([requestId])
+}
